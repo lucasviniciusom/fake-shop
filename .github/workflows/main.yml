@@ -2,15 +2,15 @@ name: CI-CD
 
 on:
   push:
-    branches: ["minha-branch"]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
   ci-docker:
     runs-on: ubuntu-latest
     steps:
-      # 1. Realizar o checkout do projeto
-      - name: Realizar checkout do projeto
+      # 1. Realizar o checkout do código
+      - name: Checkout do projeto
         uses: actions/checkout@v4.1.0
 
       # 2. Autenticar no Docker Hub
@@ -20,11 +20,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 3. Build e Push da imagem Docker para o Docker Hub
+      # 3. Verificar o conteúdo do diretório (debug)
+      - name: Listar arquivos no diretório
+        run: ls -R
+
+      # 4. Build e Push da imagem Docker
       - name: Build e Push Docker Hub
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./src
           push: true
           file: ./src/Dockerfile
           tags: |
@@ -40,27 +44,26 @@ jobs:
       actions: read
     steps:
       # 1. Realizar o checkout do projeto
-      - name: Realizar checkout do projeto
+      - name: Checkout do projeto
         uses: actions/checkout@v4.1.0
 
       # 2. Autenticar na AWS
-      - name: Autenticação na AWS
+      - name: Autenticar na AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # 3. Configurar o kubeconfig
+      # 3. Configurar kubeconfig para o EKS
       - name: Configurar o kubeconfig
         run: aws eks update-kubeconfig --name imersao-eks --region us-east-1
 
-      # 4. Deploy dos manifestos no Kubernetes
-      - name: Deploy dos manifestos no Kubernetes
+      # 4. Deploy dos manifestos Kubernetes
+      - name: Deploy no Kubernetes
         uses: Azure/k8s-deploy@v5
         with:
           manifests: |
             ./k8s/deployment.yaml
           images: |
             lucasviniciusom/fake-shop:v${{ github.run_number }}
-
