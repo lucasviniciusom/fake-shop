@@ -1,1 +1,66 @@
+name: CI-CD
+
+on:
+  push:
+    branches: ["minha-branch"]
+  workflow_dispatch:
+
+jobs:
+  ci-docker:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Realizar o checkout do projeto
+      - name: Realizar checkout do projeto
+        uses: actions/checkout@v4.1.0
+
+      # 2. Autenticar no Docker Hub
+      - name: Autenticar Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. Build e Push da imagem Docker para o Docker Hub
+      - name: Build e Push Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          file: ./Dockerfile
+          tags: |
+            lucasviniciusom/fake-shop:v${{ github.run_number }}
+            lucasviniciusom/fake-shop:latest
+
+  cd-eks:
+    runs-on: ubuntu-latest
+    needs: [ci-docker]
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      # 1. Realizar o checkout do projeto
+      - name: Realizar checkout do projeto
+        uses: actions/checkout@v4.1.0
+
+      # 2. Autenticar na AWS
+      - name: Autenticação na AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # 3. Configurar o kubeconfig
+      - name: Configurar o kubeconfig
+        run: aws eks update-kubeconfig --name imersao-eks --region us-east-1
+
+      # 4. Deploy dos manifestos no Kubernetes
+      - name: Deploy dos manifestos no Kubernetes
+        uses: Azure/k8s-deploy@v5
+        with:
+          manifests: |
+            ./k8s/deployment.yaml
+          images: |
+            lucasviniciusom/fake-shop:v${{ github.run_number }}
 
